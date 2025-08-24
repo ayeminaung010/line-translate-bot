@@ -1,0 +1,17 @@
+{
+	"name": "line-translate-app",
+	"private": true,
+	"workspaces": [
+		"apps/*",
+		"packages/*"
+	],
+	"scripts": {
+		"dev": "npm run dev --workspaces",
+		"build": "npm run build --workspaces",
+		"check-types": "npm run check-types --workspaces",
+		"dev:native": "npm run dev --workspace native",
+		"dev:web": "npm run dev --workspace web",
+		"dev:server": "npm run dev --workspace server"
+	},
+	"packageManager": "npm@11.4.2"
+}
