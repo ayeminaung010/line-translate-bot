@@ -12,7 +12,13 @@ const config = {
   channelSecret: process.env.LINE_CHANNEL_SECRET || '',
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest',
+  googleTranslateApiKey: process.env.GOOGLE_TRANSLATE_API_KEY || '',
+  translateTargetLanguageCode: process.env.TRANSLATE_TARGET_LANGUAGE_CODE || 'en',
+  translateTargetLanguageName: process.env.TRANSLATE_TARGET_LANGUAGE_NAME || 'English',
 };
+
+const DAILY_LIMIT_MESSAGE = "⚠️ Daily translation limit reached. Please try again tomorrow!";
+const GENERIC_ERROR_MESSAGE = "Sorry, an error occurred.";
 
 const client = new messagingApi.MessagingApiClient({
   channelAccessToken: config.channelAccessToken,
@@ -22,8 +28,62 @@ const client = new messagingApi.MessagingApiClient({
 // This new function calls the Gemini API to translate text.
 async function translateText(text: string): Promise<string> {
   // For now, we'll translate any incoming text to English.
-  const targetLanguage = "English";
-  const prompt = `Translate the following text into ${targetLanguage}. Provide only the translated text, without any additional explanations or context:\n\n"${text}"`;
+  const prompt = `Translate the following text into ${config.translateTargetLanguageName}. Provide only the translated text, without any additional explanations or context:\n\n"${text}"`;
+
+  if (config.googleTranslateApiKey) {
+    const translateUrl = `https://translation.googleapis.com/language/translate/v2?key=${config.googleTranslateApiKey}`;
+
+    try {
+      const response = await fetch(translateUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          q: text,
+          target: config.translateTargetLanguageCode,
+          format: 'text',
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        const errorInfo = payload?.error;
+        const errorMessage: string = errorInfo?.message || response.statusText;
+        const errorReason: string | undefined = errorInfo?.errors?.[0]?.reason;
+        const reachedDailyLimit =
+          response.status === 403 ||
+          errorReason === 'dailyLimitExceeded' ||
+          (errorMessage && errorMessage.toLowerCase().includes('daily limit exceeded'));
+
+        if (reachedDailyLimit) {
+          console.warn('Google Translate daily limit reached.', errorInfo);
+          return DAILY_LIMIT_MESSAGE;
+        }
+
+        console.error('Google Translate API error:', errorInfo || {
+          status: response.status,
+          statusText: response.statusText,
+          body: payload,
+        });
+        return GENERIC_ERROR_MESSAGE;
+      }
+
+      const translated = payload?.data?.translations?.[0]?.translatedText;
+
+      if (translated) {
+        return translated;
+      }
+
+      console.warn('Google Translate API returned no translation for input.', {
+        value: text,
+        payload,
+      });
+      return GENERIC_ERROR_MESSAGE;
+    } catch (error) {
+      console.error('Google Translate API call failed:', error);
+      return GENERIC_ERROR_MESSAGE;
+    }
+  }
 
   if (!config.geminiApiKey) {
     console.error("Gemini API key is not configured.");
@@ -61,7 +121,7 @@ async function translateText(text: string): Promise<string> {
     }
   } catch (error) {
     console.error("Translation API call failed:", error);
-    return "Sorry, an error occurred during translation.";
+    return GENERIC_ERROR_MESSAGE;
   }
 }
 

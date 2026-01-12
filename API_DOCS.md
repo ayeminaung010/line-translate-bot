@@ -53,7 +53,7 @@ POST /line-webhook
 ```
 
 #### Description
-Receives webhook events from the LINE Messaging API platform. This endpoint processes incoming messages, translates them to English using Google Gemini API, and sends the translated text back to the user.
+Receives webhook events from the LINE Messaging API platform. This endpoint processes incoming messages, translates them to the configured target language using Google Cloud Translation API v2 when available (falling back to Google Gemini), and sends the translated text back to the user.
 
 #### Authentication
 The endpoint validates incoming requests using LINE's signature verification mechanism.
@@ -197,6 +197,7 @@ Hello
 |----------------|----------|
 | Invalid webhook signature | Status: 401, Body: `"Invalid signature"` |
 | JSON parsing error | Status: 500, Body: `{ "message": "Error details" }` |
+| Google Translate daily limit reached | Status: 200 (webhook validated), Bot replies: "⚠️ Daily translation limit reached. Please try again tomorrow!" |
 | Gemini API key missing | Status: 200 (webhook validated), Bot replies: "Translation service is currently unavailable." |
 | Gemini API unreachable | Status: 200 (webhook validated), Bot replies: "Sorry, I couldn't translate that." |
 | Gemini API quota exceeded | Status: 200 (webhook validated), Bot replies: "Sorry, I couldn't translate that." |
@@ -325,6 +326,45 @@ Translate the following text into English. Provide only the translated text, wit
 ```
 Hello, how are you?
 ```
+
+### Google Cloud Translation API Integration
+
+**API Endpoint**:
+```
+https://translation.googleapis.com/language/translate/v2
+```
+
+**Method**: `POST`
+
+**Authentication**: Query parameter `key={GOOGLE_TRANSLATE_API_KEY}`
+
+**Request Format**:
+```json
+{
+  "q": "<text to translate>",
+  "target": "<iso-639-1 language code>",
+  "format": "text"
+}
+```
+
+**Response Format**:
+```json
+{
+  "data": {
+    "translations": [
+      {
+        "translatedText": "<translated_text>"
+      }
+    ]
+  }
+}
+```
+
+**Daily Limit Handling**:
+- HTTP `403` responses with `dailyLimitExceeded` reason return the friendly message `⚠️ Daily translation limit reached. Please try again tomorrow!`
+- All other errors are logged and return `Sorry, an error occurred.` to the user.
+
+---
 
 ### Gemini API Integration
 

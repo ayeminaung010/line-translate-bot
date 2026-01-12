@@ -129,6 +129,9 @@ See [Environment Variables](#environment-variables) section for details.
 | `LINE_CHANNEL_SECRET` | Line channel secret for webhook validation | `abcdef1234567890ghijk...` |
 | `GEMINI_API_KEY` | Google Gemini API key | `AIzaSyD...` |
 | `GEMINI_MODEL` *(optional)* | Gemini model identifier (defaults to `gemini-1.5-flash-latest`) | `gemini-1.5-pro-latest` |
+| `GOOGLE_TRANSLATE_API_KEY` *(optional)* | Google Cloud Translation API v2 key | `AIzaSyA...` |
+| `TRANSLATE_TARGET_LANGUAGE_CODE` *(optional)* | ISO 639-1 code for target language (defaults to `en`) | `ja` |
+| `TRANSLATE_TARGET_LANGUAGE_NAME` *(optional)* | Friendly name for target language (defaults to `English`) | `Japanese` |
 
 ### How to Obtain Credentials
 
@@ -227,10 +230,10 @@ Message sent to user
 - Sends translated text back via LINE API
 
 #### 3. **Translation Service**
-- Calls Google Gemini API with translation prompt
-- Handles API responses
-- Implements error handling and fallback messages
-- Returns translated text to user
+- Prefers Google Cloud Translation API v2 when a `GOOGLE_TRANSLATE_API_KEY` is configured
+- Falls back to Google Gemini with a translation prompt when no translation API key is available
+- Handles API responses, including daily limit errors, and returns friendly fallback messages
+- Delivers translated text back to the LINE user
 
 #### 4. **tRPC Router** (`/routers/index.ts`)
 - Provides health check procedure: `appRouter.healthCheck`
@@ -264,8 +267,8 @@ Message sent to user
    - Gets the reply token for responding
 
 5. **Translation request**
-   - Bot constructs a prompt for Gemini API: "Translate [text] to English"
-   - Sends the prompt to Google Gemini API
+   - If `GOOGLE_TRANSLATE_API_KEY` is set, the bot calls Google Cloud Translation API v2
+   - Otherwise, it constructs a Gemini prompt: "Translate [text] to {target language name}"
 
 6. **API response**
    - Gemini API returns translated text
