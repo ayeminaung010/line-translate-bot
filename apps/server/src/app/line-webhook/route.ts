@@ -1,16 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
 import {
   messagingApi,
+  TextMessage,
   validateSignature,
   WebhookEvent,
-  TextMessage,
 } from '@line/bot-sdk';
+import { NextRequest, NextResponse } from 'next/server';
 
 // --- 1. Configuration ---
 const config = {
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
   channelSecret: process.env.LINE_CHANNEL_SECRET || '',
   geminiApiKey: process.env.GEMINI_API_KEY || '',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest',
 };
 
 const client = new messagingApi.MessagingApiClient({
@@ -24,7 +25,12 @@ async function translateText(text: string): Promise<string> {
   const targetLanguage = "English";
   const prompt = `Translate the following text into ${targetLanguage}. Provide only the translated text, without any additional explanations or context:\n\n"${text}"`;
 
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${config.geminiApiKey}`;
+  if (!config.geminiApiKey) {
+    console.error("Gemini API key is not configured.");
+    return "Translation service is currently unavailable.";
+  }
+
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${config.geminiModel}:generateContent?key=${config.geminiApiKey}`;
 
   try {
     const response = await fetch(apiUrl, {
@@ -36,7 +42,13 @@ async function translateText(text: string): Promise<string> {
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
+      const errorBody = await response.text();
+      console.error("Gemini API responded with an error:", {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorBody,
+      });
+      throw new Error(`Gemini API error: ${response.statusText}`);
     }
 
     const result = await response.json();
